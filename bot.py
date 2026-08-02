@@ -2,23 +2,22 @@ import telebot
 import json
 import os
 import time
-import requests
 from datetime import datetime
 
-# === ВСТАВЬ СВОИ ДАННЫЕ СЮДА ===
-TOKEN = "8927013650:AAEDnVjrp6MJH6v5KyKJ10PTyq1uLO6Ywy4"  # Твой токен от BotFather
-YOUR_ID = 8698370995  # Твой Telegram ID (число, без кавычек)
-PROXY = None  # Если используешь прокси, напиши "http://user:pass@ip:port", иначе None
-# ================================
-
-# === ИНИЦИАЛИЗАЦИЯ ===
-bot = telebot.TeleBot(TOKEN)
-if PROXY:
-    telebot.apihelper.proxy = {'https': PROXY}
+# ==========================================
+#   КОНФИГ (ЗАМЕНИ НА СВОЁ)
+# ==========================================
+TOKEN = "8927013650:AAEDnVjrp6MJH6v5KyKJ10PTyq1uLO6Ywy4"
+YOUR_ID = 8698370995  # ТВОЙ TELEGRAM ID
+# ==========================================
 
 CHAT_FILE = "chats.json"
+MESSAGE_FILE = "message.txt"
+LOG_FILE = "log.txt"  # Файл для логов (опционально)
 
-# === ЗАГРУЗКА СПИСКА ЧАТОВ ===
+bot = telebot.TeleBot(TOKEN)
+
+# ===== ЗАГРУЗКА ЧАТОВ =====
 def load_chats():
     if os.path.exists(CHAT_FILE):
         with open(CHAT_FILE, "r") as f:
@@ -28,70 +27,61 @@ def load_chats():
                 return set()
     return set()
 
-def save_chats(chats):
-    with open(CHAT_FILE, "w") as f:
-        json.dump(list(chats), f)
+# ===== ЗАГРУЗКА ТЕКСТА РАССЫЛКИ =====
+def load_message():
+    if os.path.exists(MESSAGE_FILE):
+        with open(MESSAGE_FILE, "r", encoding="utf-8") as f:
+            return f.read().strip()
+    return "⚠️ Текст рассылки не задан"
 
-chat_ids = load_chats()
+# ===== ЗАПИСЬ ЛОГА (ДЛЯ ОТСЛЕЖИВАНИЯ) =====
+def write_log(text):
+    with open(LOG_FILE, "a", encoding="utf-8") as f:
+        f.write(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {text}\n")
 
-# === ФУНКЦИЯ РАССЫЛКИ ===
-def send_broadcast(text, photo_url=None, file_url=None):
-    success = 0
+# ===== ОТПРАВКА РАССЫЛКИ =====
+def send_broadcast():
+    chat_ids = load_chats()
+    if not chat_ids:
+        print("❌ Нет чатов")
+        write_log("Нет чатов для рассылки")
+        return
+
+    text = load_message()
+    if not text:
+        print("❌ Текст пуст")
+        write_log("Текст рассылки пуст")
+        return
+
+    sent = 0
     failed = 0
+
     for cid in list(chat_ids):
         try:
-            if photo_url:
-                bot.send_photo(cid, photo_url, caption=text)
-            elif file_url:
-                bot.send_document(cid, file_url, caption=text)
-            else:
-                bot.send_message(cid, text)
-            time.sleep(0.15)
-            success += 1
+            bot.send_message(cid, text)
+            time.sleep(0.1)  # чуть меньше задержка для скорости
+            sent += 1
         except Exception as e:
-            error_text = str(e)
-            if "bot was blocked" in error_text or "chat not found" in error_text or "user is deactivated" in error_text:
-                chat_ids.discard(cid)
-                failed += 1
-            else:
-                print(f"Ошибка для {cid}: {error_text[:50]}")
-            continue
-    save_chats(chat_ids)
-    return success, failed
+            failed += 1
+            write_log(f"Ошибка для {cid}: {str(e)[:50]}")
 
-# === ПОЛУЧЕНИЕ ПОСЛЕДНЕЙ КОМАНДЫ ===
-def get_last_command():
+    # ===== ОТЧЁТ ТЕБЕ =====
+    report = (
+        f"✅ **Рассылка (5 мин)**\n"
+        f"📨 Отправлено: {sent}\n"
+        f"❌ Ошибок: {failed}\n"
+        f"📋 Чатов: {len(chat_ids)}\n"
+        f"🕒 {datetime.now().strftime('%H:%M')}"
+    )
     try:
-        updates = bot.get_updates(offset=-1, limit=10)
-        for update in reversed(updates):
-            msg = update.message
-            if msg and msg.from_user.id == YOUR_ID and msg.text:
-                if msg.text.startswith('/broadcast'):
-                    parts = msg.text.replace('/broadcast', '', 1).strip().split('|')
-                    text = parts[0].strip()
-                    photo = parts[1].strip() if len(parts) > 1 and 'http' in parts[1] else None
-                    file = parts[2].strip() if len(parts) > 2 and 'http' in parts[2] else None
-                    return text, photo, file, msg.message_id
-                elif msg.text.startswith('/addchat'):
-                    try:
-                        new_id = int(msg.text.replace('/addchat', '').strip())
-                        chat_ids.add(new_id)
-                        save_chats(chat_ids)
-                        bot.send_message(YOUR_ID, f"✅ Чат {new_id} добавлен. Всего: {len(chat_ids)}")
-                    except:
-                        bot.send_message(YOUR_ID, "❌ Неверный ID. Используй /addchat 123456789")
-                elif msg.text.startswith('/stats'):
-                    bot.send_message(YOUR_ID, f"📊 Всего чатов: {len(chat_ids)}")
-    except Exception as e:
-        print(f"Ошибка get_updates: {e}")
-    return None, None, None, None
-
-# === ОСНОВНОЙ ЗАПУСК ===
-if __name__ == "__main__":
-    text, photo, file, msg_id = get_last_command()
-    if text:
-        sent, failed = send_broadcast(text, photo, file)
-        report = f"✅ Рассылка завершена\n📨 Отправлено: {sent}\n❌ Удалено неактивных: {failed}\n📋 Всего чатов: {len(chat_ids)}\n🕒 {datetime.now().strftime('%Y-%m-%d %H:%M')}"
         bot.send_message(YOUR_ID, report)
-    else:
-        bot.send_message(YOUR_ID, f"⏳ Нет новых команд. Чатов в базе: {len(chat_ids)}")
+    except:
+        pass
+
+    write_log(f"Отправлено: {sent}, ошибок: {failed}")
+
+# ===== ТОЧКА ВХОДА =====
+if __name__ == "__main__":
+    print("🚀 Запуск рассылки (5 мин)...")
+    send_broadcast()
+    print("✅ Готово")
