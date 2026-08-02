@@ -7,7 +7,7 @@ from datetime import datetime
 
 # === ЗАГРУЗКА ПЕРЕМЕННЫХ ИЗ СЕКРЕТОВ ===
 TOKEN = os.getenv("8927013650:AAEDnVjrp6MJH6v5KyKJ10PTyq1uLO6Ywy4")
-YOUR_ID = int(os.getenv("8698370995"))
+YOUR_ID = 8698370995
 PROXY = os.getenv("PROXY")  # опционально
 
 if not TOKEN or not YOUR_ID:
