@@ -5,15 +5,13 @@ import time
 import requests
 from datetime import datetime
 
-# === ЗАГРУЗКА ПЕРЕМЕННЫХ ИЗ СЕКРЕТОВ ===
-TOKEN = os.getenv("8927013650:AAEDnVjrp6MJH6v5KyKJ10PTyq1uLO6Ywy4")
-YOUR_ID = 8698370995
-PROXY = os.getenv("PROXY")  # опционально
+# === ВСТАВЬ СВОИ ДАННЫЕ СЮДА ===
+TOKEN = "8927013650:AAEDnVjrp6MJH6v5KyKJ10PTyq1uLO6Ywy4"  # Твой токен от BotFather
+YOUR_ID = 8698370995  # Твой Telegram ID (число, без кавычек)
+PROXY = None  # Если используешь прокси, напиши "http://user:pass@ip:port", иначе None
+# ================================
 
-if not TOKEN or not YOUR_ID:
-    raise Exception("BOT_TOKEN или YOUR_ID не заданы в секретах")
-
-# === ИНИЦИАЛИЗАЦИЯ БОТА ===
+# === ИНИЦИАЛИЗАЦИЯ ===
 bot = telebot.TeleBot(TOKEN)
 if PROXY:
     telebot.apihelper.proxy = {'https': PROXY}
@@ -39,7 +37,7 @@ chat_ids = load_chats()
 # === ФУНКЦИЯ РАССЫЛКИ ===
 def send_broadcast(text, photo_url=None, file_url=None):
     success = 0
-    failed = []
+    failed = 0
     for cid in list(chat_ids):
         try:
             if photo_url:
@@ -54,13 +52,12 @@ def send_broadcast(text, photo_url=None, file_url=None):
             error_text = str(e)
             if "bot was blocked" in error_text or "chat not found" in error_text or "user is deactivated" in error_text:
                 chat_ids.discard(cid)
-                failed.append(cid)
+                failed += 1
             else:
-                # Логируем другие ошибки
                 print(f"Ошибка для {cid}: {error_text[:50]}")
             continue
     save_chats(chat_ids)
-    return success, len(failed)
+    return success, failed
 
 # === ПОЛУЧЕНИЕ ПОСЛЕДНЕЙ КОМАНДЫ ===
 def get_last_command():
@@ -83,6 +80,8 @@ def get_last_command():
                         bot.send_message(YOUR_ID, f"✅ Чат {new_id} добавлен. Всего: {len(chat_ids)}")
                     except:
                         bot.send_message(YOUR_ID, "❌ Неверный ID. Используй /addchat 123456789")
+                elif msg.text.startswith('/stats'):
+                    bot.send_message(YOUR_ID, f"📊 Всего чатов: {len(chat_ids)}")
     except Exception as e:
         print(f"Ошибка get_updates: {e}")
     return None, None, None, None
@@ -92,7 +91,7 @@ if __name__ == "__main__":
     text, photo, file, msg_id = get_last_command()
     if text:
         sent, failed = send_broadcast(text, photo, file)
-        report = f"✅ Рассылка\n📨 Отправлено: {sent}\n❌ Удалено неактивных: {failed}\n📋 Всего чатов: {len(chat_ids)}\n🕒 {datetime.now().strftime('%Y-%m-%d %H:%M')}"
+        report = f"✅ Рассылка завершена\n📨 Отправлено: {sent}\n❌ Удалено неактивных: {failed}\n📋 Всего чатов: {len(chat_ids)}\n🕒 {datetime.now().strftime('%Y-%m-%d %H:%M')}"
         bot.send_message(YOUR_ID, report)
     else:
-        bot.send_message(YOUR_ID, f"⏳ Нет команд. Чатов в базе: {len(chat_ids)}")
+        bot.send_message(YOUR_ID, f"⏳ Нет новых команд. Чатов в базе: {len(chat_ids)}")
