@@ -1,0 +1,26 @@
+name: Auto Broadcast (каждые 5 минут)
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'    # ⬅️ КАЖДЫЕ 5 МИНУТ
+  workflow_dispatch:          # Ручной запуск
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5        # Лимит 5 минут (чтобы не накладывались)
+
+    steps:
+      - name: 📥 Checkout
+        uses: actions/checkout@v4
+
+      - name: 🐍 Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: 📦 Install
+        run: pip install pytelegrambotapi
+
+      - name: 🚀 Run
+        run: python bot.py
